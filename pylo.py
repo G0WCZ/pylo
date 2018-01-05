@@ -29,7 +29,7 @@ class Log():
     """
     pass
 
-class QSO(dict):
+class QSO():
     """
     Basic components of a QSO/Log entry
     """
@@ -40,8 +40,8 @@ class QSO(dict):
         self.op = None
         self.start = datetime.utcnow()
         self.end = None
-        self.mode = 'cw' # cw, ssb etc
-        self.freq = Decimal('0.000')
+        self.mode = None # cw, ssb etc
+        self.freq = None
         self.act = None   # qso or cq or tx or rx
         self.ops_rst = None
         self.my_rst = None
@@ -57,7 +57,7 @@ class QSO(dict):
         line = [
             f'<{comment}>',
             self.start.strftime('%H%M') + ('->' + self.end.strftime('%H%M') if self.end else ''),
-            str(self.freq) or 'f?',
+            self.freq and str(self.freq) or 'f?',
             self.mode or 'mo?',
             self.act or 'do?',
             self.callsign or 'dx?',
@@ -65,10 +65,10 @@ class QSO(dict):
             's>' + (self.ops_rst or '?'),
             'r>' + (self.my_rst or '?'),
         ]
-        return ':'.join(line)
+        return ' '.join(line)
 
 class LogSh(cmd.Cmd):
-    intro = 'LogSh v0.1'
+    intro = 'pylo 0.2'
     prompt = '% '
     
     def __init__(self):
@@ -91,13 +91,15 @@ class LogSh(cmd.Cmd):
     do_f = do_fr
 
     def do_mo(self, args):
-        self.qso.mode = args
+        self.qso.mode = args.upper()
+
+    do_m = do_mo
 
     def do_op(self, args):
-        self.qso.op = args
+        self.qso.op = args = args.title()
 
     def do_dx(self, args):
-        self.qso.callsign = args
+        self.qso.callsign = args.upper()
 
     do_h = do_dx
 
@@ -112,8 +114,13 @@ class LogSh(cmd.Cmd):
     def do_cq(self, args):
         self.qso.act = 'cq'
 
+    def do_do(self, args):
+        self.qso.act = args.upper()
+
     def do_rs(self, args):
         self.qso.ops_rst = args
+
+    do_ur = do_rs
 
     def do_my(self, args):
         self.qso.my_rst = args
@@ -121,6 +128,8 @@ class LogSh(cmd.Cmd):
     def do_no(self, args):
         for l in self.qso.notes:
             print(l)
+
+    do_n = do_no
 
     def do_un(self, args):
         self.qso.notes.pop()
