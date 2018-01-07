@@ -1,3 +1,4 @@
+# !/
 # pylo.py python logger
 # keep notes alongside qsos
 #
@@ -5,23 +6,11 @@
 import cmd
 from datetime import datetime
 from decimal import Decimal
+from uuid import uuid4
 
-class Field():
-    def __init__(self, name, value=None):
-        self.name = name
-        self.value = value
+import dateutil
+from tinydb import TinyDB, Query
 
-    def validate(self, args):
-        return True
-
-    def store(self, args):
-        pass
-
-    def print(self):
-        print(self.value)
-
-    def set(self, value):
-        self.value = value
 
 class Log():
     """
@@ -33,19 +22,33 @@ class QSO():
     """
     Basic components of a QSO/Log entry
     """
-    def __init__(self):
+    def __init__(self, config, content=None):
         super().__init__()
-        self.me = 'G0WCZ'
-        self.callsign = None
-        self.op = None
-        self.start = datetime.utcnow()
-        self.end = None
-        self.mode = None # cw, ssb etc
-        self.freq = None
-        self.act = None   # qso or cq or tx or rx
-        self.ops_rst = None
-        self.my_rst = None
-        self.notes = []
+        self.me = config['my_call']
+        if content:
+            self.start = dateutil.parser(content['start'])
+            self.end = dateutil.parser(content['end'])
+            self.mode = content['mode']
+            self.freq = Decimal(content['freq'])
+            self.act = content['act']
+            self.callsign = content['callsign']
+            self.op = content['op']
+            self.my_rst = content['my_rst']
+            self.ops_rst = content['ops_rst']
+            self.notes = content['notes']
+            self.id = content['id']
+        else:
+            self.callsign = None
+            self.op = None
+            self.start = datetime.utcnow()
+            self.end = None
+            self.mode = None # cw, ssb etc
+            self.freq = None
+            self.act = None   # qso or cq or tx or rx
+            self.ops_rst = None
+            self.my_rst = None
+            self.notes = []
+            self.id = uuid4().hex
 
     def set_start_time(self, args):
         self.start = datetime.utcnow()
@@ -64,19 +67,49 @@ class QSO():
             self.op or 'op?',
             's>' + (self.ops_rst or '?'),
             'r>' + (self.my_rst or '?'),
+            f'[{self.id[0:7]}]'
         ]
         return ' '.join(line)
 
-class LogSh(cmd.Cmd):
+    def as_dict(self):
+        return {
+            'start': self.start.isoformat(),
+            'end': self.end and self.end.isoformat(),
+            'mode': self.mode,
+            'freq': self.freq and str(self.freq),
+            'act': self.act,
+            'callsign': self.callsign,
+            'op': self.op,
+            'my_rst': self.my_rst,
+            'ops_rst': self.ops_rst,
+            'notes': self.notes,
+            'id': self.id
+        }
+
+
+class PyloCmd(cmd.Cmd):
     intro = 'pylo 0.2'
     prompt = '% '
     
-    def __init__(self):
-        self.qso = QSO();
+    def __init__(self, config):
+        self.config = config
+        self.qso = QSO(self.config)
+
+        # Open up db
+        self.db = TinyDB(config['db_file'])
+        self.log_table = self.db.table(config['log_table_name'])
+
         super().__init__()
 
+    def save_qso(self):
+        self.log_table.upsert(self.qso.as_dict(), Query().id == self.qso.id)
+
     def do_new(self, args):
-        self.qso = QSO()
+        self.save_qso()
+        self.qso = QSO(self.config)
+
+    def do_save(self, args):
+        self.save_qso()
 
     def do_st(self, args):
         'Set start'
@@ -108,7 +141,7 @@ class LogSh(cmd.Cmd):
 
     def do_rr(self, args):
         if args:
-            self.qso.callsign = args
+            self.qso.callsign = args.upper()
         self.qso.act = 'qso'
 
     def do_cq(self, args):
@@ -139,6 +172,7 @@ class LogSh(cmd.Cmd):
             self.qso.notes.append(line)
 
     def do_EOF(self, args):
+        self.save_qso()
         print('73 sk')
         exit(0)
 
@@ -146,5 +180,11 @@ class LogSh(cmd.Cmd):
         print(self.qso.line('r'))
         return False
 
+config = {
+    'my_call': 'G0WCZ',
+    'db_file': 'gowcz_log_1.json',
+    'log_table_name': 'mainlog'
+}
+
 if __name__ == '__main__':
-    LogSh().cmdloop()
+    PyloCmd(config).cmdloop()
