@@ -1,4 +1,4 @@
-# !/
+#!./venv/bin/python
 # pylo.py python logger
 # keep notes alongside qsos
 #
@@ -169,7 +169,8 @@ class PyloCmd(cmd.Cmd):
 
     def default(self, line):
         if line[0] == '.':
-            self.qso.notes.append(line)
+            self.qso.notes.append(line[2:])
+
 
     def do_EOF(self, args):
         self.save_qso()
@@ -182,8 +183,8 @@ class PyloCmd(cmd.Cmd):
 
 config = {
     'my_call': 'G0WCZ',
-    'db_file': 'gowcz_log_1.json',
-    'log_table_name': 'mainlog'
+    'db_file': './logs/G0WCZ1.json',
+    'log_table_name': 'main'
 }
 
 if __name__ == '__main__':
