@@ -1,2 +1,3 @@
 tinydb
 python-dateutil
+crayons

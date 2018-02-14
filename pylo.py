@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
-import dateutil
+from dateutil import parser
 from tinydb import TinyDB, Query
 
 
@@ -26,8 +26,8 @@ class QSO():
         super().__init__()
         self.me = config['my_call']
         if content:
-            self.start = dateutil.parser(content['start'])
-            self.end = dateutil.parser(content['end'])
+            self.start = parser.parse(content['start'])
+            self.end = parser.parse(content['end'])
             self.mode = content['mode']
             self.freq = Decimal(content['freq'])
             self.act = content['act']
