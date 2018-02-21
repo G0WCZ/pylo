@@ -55,5 +55,3 @@ class TestQSO(unittest.TestCase):
         self.assertEqual(qso.notes, ['a', 'b', 'c'])
         self.assertEqual(qso.id, 'an-id')
 
-    def
-

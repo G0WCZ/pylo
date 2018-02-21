@@ -8,6 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
+from colorama import init, Fore, Back, Style
 from dateutil import parser
 from tinydb import TinyDB, Query
 
@@ -58,16 +59,17 @@ class QSO():
 
     def line(self, comment='?'):
         line = [
-            f'<{comment}>',
-            self.start.strftime('%H%M') + ('->' + self.end.strftime('%H%M') if self.end else ''),
-            self.freq and str(self.freq) or 'f?',
-            self.mode or 'mo?',
-            self.act or 'do?',
-            self.callsign or 'dx?',
-            self.op or 'op?',
-            's>' + (self.ops_rst or '?'),
-            'r>' + (self.my_rst or '?'),
-            f'[{self.id[0:7]}]'
+            '>',
+            Fore.LIGHTRED_EX + (self.start.strftime('%a %d/%m ') + self.start.strftime('%H%M') + ('->' + self.end.strftime('%H%M') if self.end else '')),
+            Fore.GREEN + (self.freq and str(self.freq) or 'f?'),
+            Fore.RED + (self.mode or 'mo?'),
+            Fore.LIGHTBLUE_EX + (self.act or 'do?'),
+            Fore.RED + (self.callsign or 'dx?'),
+            Fore.GREEN + (self.op or 'op?'),
+            Fore.BLUE + ('s>' + (self.ops_rst or '?')),
+            Fore.BLUE + ('r>' + (self.my_rst or '?')),
+            Style.RESET_ALL + Style.DIM + f'[{self.id[0:7]}]',
+            Style.RESET_ALL
         ]
         return ' '.join(line)
 
@@ -86,6 +88,25 @@ class QSO():
             'id': self.id
         }
 
+    def update_from_dict(self, d):
+        self.start = parser.parse(d['start'])
+        try:
+            self.end = parser.parse(d['end'])
+        except:
+            self.end = None
+        self.mode = d['mode']
+        try:
+            self.freq = Decimal(d['freq'])
+        except:
+            self.freq = None
+        self.act = d['act']
+        self.callsign = d['callsign']
+        self.op = d['op']
+        self.my_rst = d['my_rst']
+        self.ops_rst = d['ops_rst']
+        self.notes = d['notes']
+        self.id = d['id']
+
 
 class PyloCmd(cmd.Cmd):
     intro = 'pylo 0.2'
@@ -93,11 +114,16 @@ class PyloCmd(cmd.Cmd):
     
     def __init__(self, config):
         self.config = config
-        self.qso = QSO(self.config)
 
         # Open up db
         self.db = TinyDB(config['db_file'])
         self.log_table = self.db.table(config['log_table_name'])
+        self.qso = QSO(self.config)
+        try:
+            last = self.log_table.all()[-1]
+            self.qso.update_from_dict(last)
+        except IndexError:
+           pass
 
         super().__init__()
 
@@ -105,66 +131,102 @@ class PyloCmd(cmd.Cmd):
         self.log_table.upsert(self.qso.as_dict(), Query().id == self.qso.id)
 
     def do_new(self, args):
+        freq = self.qso.freq
+        mode = self.qso.mode
+        act = self.qso.act
         self.save_qso()
         self.qso = QSO(self.config)
+        self.qso.freq = freq
+        self.qso.mode = mode
+        self.qso.act = act
+
+    def do_clr(self, args):
+        self.qso = QSO(self.config)
+
+    do_e = do_clr
 
     def do_save(self, args):
         self.save_qso()
 
-    def do_st(self, args):
+    do_w = do_save
+
+    def do_on(self, args):
         'Set start'
         self.qso.set_start_time(args)
 
-    def do_sk(self, args):
+    do_st = do_on
+
+    def do_off(self, args):
         self.qso.set_end_time(args)
 
-    def do_fr(self, args):
+    do_x = do_off
+
+    def do_freq(self, args):
         self.qso.freq = Decimal(args)
 
-    do_f = do_fr
+    do_f = do_freq
+    do_fr = do_freq
 
     def do_mo(self, args):
         self.qso.mode = args.upper()
 
     do_m = do_mo
 
+    def do_cw(self, args):
+        self.qso.mode = 'CW'
+
+    def do_ssb(self, args):
+        self.qso.mode = 'SSB'
+
     def do_op(self, args):
         self.qso.op = args = args.title()
+
+    do_name = do_op
+    do_n = do_op
 
     def do_dx(self, args):
         self.qso.callsign = args.upper()
 
-    do_h = do_dx
-
-    def do_time(self, args):
-        pass
+    do_call = do_dx
 
     def do_rr(self, args):
         if args:
             self.qso.callsign = args.upper()
-        self.qso.act = 'qso'
+        self.qso.act = 'QSO'
 
     def do_cq(self, args):
-        self.qso.act = 'cq'
+        self.qso.act = 'CQ'
 
     def do_do(self, args):
         self.qso.act = args.upper()
 
+    def do_qso(self, args):
+        self.qso.act = 'QSO'
+
+    def do_heard(self, args):
+        self.qso.act = 'HEARD'
+        if args:
+            self.do_dx(args)
+
+    do_h = do_heard
+
     def do_rs(self, args):
         self.qso.ops_rst = args
 
-    do_ur = do_rs
+    do_s = do_rs
 
     def do_my(self, args):
         self.qso.my_rst = args
 
-    def do_no(self, args):
+    do_r = do_my
+
+    def do_list(self, args):
         for l in self.qso.notes:
             print(l)
 
-    do_n = do_no
+    do_l = do_list
 
-    def do_un(self, args):
+    def do_undo(self, args):
         self.qso.notes.pop()
 
     def default(self, line):

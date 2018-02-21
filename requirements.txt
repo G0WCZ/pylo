@@ -1,3 +1,4 @@
 tinydb
 python-dateutil
-crayons
+colorama
+pyserial
